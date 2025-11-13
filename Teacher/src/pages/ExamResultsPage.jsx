@@ -24,6 +24,7 @@ const ExamResultsPage = () => {
   const [examTypes] = useState(['monthly_one', 'midTerm', 'monthly_two', 'Final']);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [editingInputs, setEditingInputs] = useState({});
 
   const { user } = useAuth();
 
@@ -66,6 +67,16 @@ const ExamResultsPage = () => {
     }
   };
 
+  const handleInputChange = (studentId, examType, value) => {
+    // Only allow numbers, decimal point, and empty string
+    if (value === '' || /^\d*\.?\d*$/.test(value)) {
+      setEditingInputs(prev => ({
+        ...prev,
+        [`${studentId}-${examType}`]: value
+      }));
+    }
+  };
+
   const handleSaveResult = async (studentId, subject, examType, marks) => {
     try {
       console.log('Saving result:', { studentId, subject, examType, marks });
@@ -78,13 +89,46 @@ const ExamResultsPage = () => {
         Final: 60
       };
 
-      if (marks > maxMarks[examType]) {
-        toast.error(`Maximum marks for ${examType} is ${maxMarks[examType]}`);
+      // Allow empty string for clearing marks
+      if (marks === '' || marks === null) {
+        // If marks are cleared, delete the existing result if it exists
+        const existingResult = examResults.find(result => 
+          result.student._id === studentId && 
+          result.subject === selectedSubject && 
+          result.exam_type === examType
+        );
+
+        if (existingResult) {
+          await teacherAPI.deleteExamResult(existingResult._id);
+          toast.success('Marks cleared successfully');
+          fetchExamResults();
+        }
+        
+        // Clear from editing inputs
+        setEditingInputs(prev => {
+          const newInputs = { ...prev };
+          delete newInputs[`${studentId}-${examType}`];
+          return newInputs;
+        });
         return;
       }
 
-      if (!marks || marks === '') {
-        toast.error('Please enter marks');
+      // Parse as float for decimal numbers
+      const marksValue = parseFloat(marks);
+
+      // Validate the parsed value
+      if (isNaN(marksValue)) {
+        toast.error('Please enter a valid number');
+        return;
+      }
+
+      if (marksValue < 0) {
+        toast.error('Marks cannot be negative');
+        return;
+      }
+
+      if (marksValue > maxMarks[examType]) {
+        toast.error(`Maximum marks for ${examType} is ${maxMarks[examType]}`);
         return;
       }
 
@@ -99,7 +143,7 @@ const ExamResultsPage = () => {
         class: selectedClass,
         subject: selectedSubject,
         exam_type: examType,
-        marks: parseInt(marks) || 0
+        marks: marksValue
       };
 
       console.log('Sending data to backend:', resultData);
@@ -116,6 +160,13 @@ const ExamResultsPage = () => {
       console.log('Backend response:', response.data);
       fetchExamResults();
 
+      // Clear from editing inputs after successful save
+      setEditingInputs(prev => {
+        const newInputs = { ...prev };
+        delete newInputs[`${studentId}-${examType}`];
+        return newInputs;
+      });
+
     } catch (error) {
       console.error('Save result error:', error);
       console.error('Error response:', error.response?.data);
@@ -123,13 +174,43 @@ const ExamResultsPage = () => {
     }
   };
 
+  const handleInputBlur = (studentId, examType, value) => {
+    if (value !== '' && value !== null && value !== undefined) {
+      handleSaveResult(studentId, selectedSubject, examType, value);
+    } else {
+      // Clear from editing inputs if empty
+      setEditingInputs(prev => {
+        const newInputs = { ...prev };
+        delete newInputs[`${studentId}-${examType}`];
+        return newInputs;
+      });
+    }
+  };
+
+  const handleInputKeyPress = (e, studentId, examType, value) => {
+    if (e.key === 'Enter') {
+      handleSaveResult(studentId, selectedSubject, examType, value);
+    }
+  };
+
+  const getInputValue = (studentId, examType, existingResult) => {
+    const editingKey = `${studentId}-${examType}`;
+    if (editingInputs[editingKey] !== undefined) {
+      return editingInputs[editingKey];
+    }
+    return existingResult?.marks !== undefined ? existingResult.marks : '';
+  };
+
   const calculateTotal = (studentId, subject) => {
     const studentResults = examResults.filter(result => 
-      result.student._id === studentId && result.subject === subject
+      result.student._id === studentId && 
+      result.subject === subject &&
+      result.marks !== undefined &&
+      result.marks !== null
     );
 
     const total = studentResults.reduce((sum, result) => sum + result.marks, 0);
-    return total;
+    return Math.round(total * 100) / 100; // Round to 2 decimal places
   };
 
   const getGrade = (total) => {
@@ -344,23 +425,21 @@ const ExamResultsPage = () => {
                           result.exam_type === examType
                         );
 
+                        const inputValue = getInputValue(student._id, examType, existingResult);
+
                         return (
                           <td key={examType} className="px-3 lg:px-4 py-4">
                             <div className="flex justify-center">
                               <input
-                                type="number"
-                                min="0"
-                                max={examType === 'monthly_one' || examType === 'monthly_two' ? 10 : 
-                                     examType === 'midTerm' ? 20 : 60}
-                                value={existingResult?.marks || ''}
-                                onChange={(e) => handleSaveResult(
-                                  student._id, 
-                                  selectedSubject, 
-                                  examType, 
-                                  e.target.value
-                                )}
+                                type="text"
+                                inputMode="decimal"
+                                value={inputValue}
+                                onChange={(e) => handleInputChange(student._id, examType, e.target.value)}
+                                onBlur={(e) => handleInputBlur(student._id, examType, e.target.value)}
+                                onKeyPress={(e) => handleInputKeyPress(e, student._id, examType, e.target.value)}
                                 className="w-16 lg:w-20 px-2 py-2 border border-gray-300 rounded-lg text-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 text-gray-700 font-medium"
                                 placeholder="0"
+                                title="Enter marks (e.g., 7.5, 8.25). Press Enter to save."
                               />
                             </div>
                           </td>
