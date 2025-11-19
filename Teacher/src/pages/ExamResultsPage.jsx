@@ -11,7 +11,10 @@ import {
   Filter,
   Download,
   Edit3,
-  Save
+  Save,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 
 const ExamResultsPage = () => {
@@ -25,6 +28,7 @@ const ExamResultsPage = () => {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingInputs, setEditingInputs] = useState({});
+  const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
 
   const { user } = useAuth();
 
@@ -65,6 +69,55 @@ const ExamResultsPage = () => {
     } catch (error) {
       toast.error('Failed to fetch exam results');
     }
+  };
+
+  // Sort students function
+  const sortStudents = (students) => {
+    if (!sortConfig.key) return students;
+
+    const sortedStudents = [...students].sort((a, b) => {
+      let aValue, bValue;
+
+      switch (sortConfig.key) {
+        case 'name':
+          aValue = a.Std_Name.toLowerCase();
+          bValue = b.Std_Name.toLowerCase();
+          break;
+        case 'id':
+          aValue = a.Std_ID.toLowerCase();
+          bValue = b.Std_ID.toLowerCase();
+          break;
+        default:
+          return 0;
+      }
+
+      if (aValue < bValue) {
+        return sortConfig.direction === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return sortConfig.direction === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+
+    return sortedStudents;
+  };
+
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortIcon = (key) => {
+    if (sortConfig.key !== key) {
+      return <ArrowUpDown className="w-3 h-3 ml-1" />;
+    }
+    return sortConfig.direction === 'asc' ? 
+      <ArrowUp className="w-3 h-3 ml-1" /> : 
+      <ArrowDown className="w-3 h-3 ml-1" />;
   };
 
   const handleInputChange = (studentId, examType, value) => {
@@ -236,10 +289,13 @@ const ExamResultsPage = () => {
     return colors[grade] || 'bg-gray-100 text-gray-600';
   };
 
+  // Filter and sort students
   const filteredStudents = students.filter(student =>
     student.Std_Name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     student.Std_ID.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const sortedStudents = sortStudents(filteredStudents);
 
   const getExamTypeDisplay = (type) => {
     const displays = {
@@ -319,21 +375,47 @@ const ExamResultsPage = () => {
             </select>
           </div>
 
-          {/* Search */}
+          {/* Search and Sort */}
           <div className="lg:col-span-2">
-            <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center space-x-2">
-              <Search className="w-4 h-4 text-blue-600" />
-              <span>Search Student</span>
-            </label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-5 h-5" />
-              <input
-                type="text"
-                placeholder="Search by name or ID..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 text-gray-700 font-medium"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Search */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center space-x-2">
+                  <Search className="w-4 h-4 text-blue-600" />
+                  <span>Search Student</span>
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-5 h-5" />
+                  <input
+                    type="text"
+                    placeholder="Search by name or ID..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 text-gray-700 font-medium"
+                  />
+                </div>
+              </div>
+
+              {/* Sort Dropdown */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center space-x-2">
+                  <ArrowUpDown className="w-4 h-4 text-blue-600" />
+                  <span>Sort By</span>
+                </label>
+                <select
+                  value={`${sortConfig.key}-${sortConfig.direction}`}
+                  onChange={(e) => {
+                    const [key, direction] = e.target.value.split('-');
+                    setSortConfig({ key, direction });
+                  }}
+                  className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 text-gray-700 font-medium"
+                >
+                  <option value="name-asc">Name (A-Z)</option>
+                  <option value="name-desc">Name (Z-A)</option>
+                  <option value="id-asc">ID (A-Z)</option>
+                  <option value="id-desc">ID (Z-A)</option>
+                </select>
+              </div>
             </div>
           </div>
         </div>
@@ -351,6 +433,12 @@ const ExamResultsPage = () => {
                 Subject: {selectedSubject}
               </span>
             )}
+            <span className="inline-flex items-center px-3 py-1 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-full text-sm font-semibold">
+              Sort: {sortConfig.key === 'name' ? 'Name' : 
+                    sortConfig.key === 'id' ? 'ID' : 
+                    sortConfig.key === 'total' ? 'Total' : 'Grade'} 
+              ({sortConfig.direction === 'asc' ? 'A-Z' : 'Z-A'})
+            </span>
           </div>
         )}
       </div>
@@ -367,8 +455,15 @@ const ExamResultsPage = () => {
                 </h2>
                 <div className="flex items-center space-x-3 mt-3 lg:mt-0">
                   <span className="text-sm text-gray-600 font-medium">
-                    {filteredStudents.length} Students
+                    {sortedStudents.length} Students
                   </span>
+                  <button
+                    onClick={() => handleSort('name')}
+                    className="flex items-center space-x-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-200 transition-colors"
+                  >
+                    <span>Sort</span>
+                    {getSortIcon('name')}
+                  </button>
                 </div>
               </div>
             </div>
@@ -377,8 +472,14 @@ const ExamResultsPage = () => {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gradient-to-r from-blue-600 to-blue-700">
                   <tr>
-                    <th className="px-4 lg:px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
-                      Student Info
+                    <th 
+                      className="px-4 lg:px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider cursor-pointer hover:bg-blue-800 transition-colors"
+                      onClick={() => handleSort('name')}
+                    >
+                      <div className="flex items-center">
+                        Student Info
+                        {getSortIcon('name')}
+                      </div>
                     </th>
                     {examTypes.map((type) => (
                       <th key={type} className="px-3 lg:px-4 py-4 text-center text-xs font-semibold text-white uppercase tracking-wider">
@@ -391,16 +492,28 @@ const ExamResultsPage = () => {
                         </div>
                       </th>
                     ))}
-                    <th className="px-4 lg:px-6 py-4 text-center text-xs font-semibold text-white uppercase tracking-wider">
-                      Total /100
+                    <th 
+                      className="px-4 lg:px-6 py-4 text-center text-xs font-semibold text-white uppercase tracking-wider cursor-pointer hover:bg-blue-800 transition-colors"
+                      onClick={() => handleSort('total')}
+                    >
+                      <div className="flex items-center justify-center">
+                        Total /100
+                        {selectedSubject && getSortIcon('total')}
+                      </div>
                     </th>
-                    <th className="px-4 lg:px-6 py-4 text-center text-xs font-semibold text-white uppercase tracking-wider">
-                      Grade
+                    <th 
+                      className="px-4 lg:px-6 py-4 text-center text-xs font-semibold text-white uppercase tracking-wider cursor-pointer hover:bg-blue-800 transition-colors"
+                      onClick={() => handleSort('grade')}
+                    >
+                      <div className="flex items-center justify-center">
+                        Grade
+                        {selectedSubject && getSortIcon('grade')}
+                      </div>
                     </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredStudents.map((student) => (
+                  {sortedStudents.map((student) => (
                     <tr key={student._id} className="hover:bg-blue-50 transition-colors duration-200">
                       {/* Student Info */}
                       <td className="px-4 lg:px-6 py-4">
@@ -478,7 +591,7 @@ const ExamResultsPage = () => {
             </div>
 
             {/* Empty State */}
-            {filteredStudents.length === 0 && (
+            {sortedStudents.length === 0 && (
               <div className="text-center py-12">
                 <Calculator className="w-16 h-16 text-gray-400 mx-auto mb-4 opacity-50" />
                 <h3 className="text-lg font-semibold text-gray-700 mb-2">No Students Found</h3>
@@ -488,11 +601,11 @@ const ExamResultsPage = () => {
           </div>
 
           {/* Quick Stats */}
-          {selectedSubject && filteredStudents.length > 0 && (
+          {selectedSubject && sortedStudents.length > 0 && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-gradient-to-br from-green-500 to-green-400 rounded-2xl shadow-xl p-4 text-white text-center">
                 <div className="text-2xl font-bold">
-                  {filteredStudents.filter(student => {
+                  {sortedStudents.filter(student => {
                     const total = calculateTotal(student._id, selectedSubject);
                     return getGrade(total) === 'A+' || getGrade(total) === 'A';
                   }).length}
@@ -502,7 +615,7 @@ const ExamResultsPage = () => {
               
               <div className="bg-gradient-to-br from-blue-500 to-blue-400 rounded-2xl shadow-xl p-4 text-white text-center">
                 <div className="text-2xl font-bold">
-                  {filteredStudents.filter(student => {
+                  {sortedStudents.filter(student => {
                     const total = calculateTotal(student._id, selectedSubject);
                     return getGrade(total) === 'B+' || getGrade(total) === 'B';
                   }).length}
@@ -512,7 +625,7 @@ const ExamResultsPage = () => {
               
               <div className="bg-gradient-to-br from-yellow-500 to-yellow-400 rounded-2xl shadow-xl p-4 text-white text-center">
                 <div className="text-2xl font-bold">
-                  {filteredStudents.filter(student => {
+                  {sortedStudents.filter(student => {
                     const total = calculateTotal(student._id, selectedSubject);
                     return getGrade(total) === 'C' || getGrade(total) === 'D';
                   }).length}
@@ -522,7 +635,7 @@ const ExamResultsPage = () => {
               
               <div className="bg-gradient-to-br from-red-500 to-red-400 rounded-2xl shadow-xl p-4 text-white text-center">
                 <div className="text-2xl font-bold">
-                  {filteredStudents.filter(student => {
+                  {sortedStudents.filter(student => {
                     const total = calculateTotal(student._id, selectedSubject);
                     return getGrade(total) === 'F';
                   }).length}
