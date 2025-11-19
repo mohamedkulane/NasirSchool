@@ -9,7 +9,8 @@ import {
   Users,
   Phone,
   CheckCircle,
-  XCircle
+  XCircle,
+  ArrowUpDown
 } from 'lucide-react';
 import { adminAPI } from '../../utils/api';
 
@@ -25,6 +26,7 @@ const Students = () => {
     status: 'active',
     search: ''
   });
+  const [sortOrder, setSortOrder] = useState('asc'); // 'asc' or 'desc'
 
   const fileInputRef = useRef(null);
   const [importFile, setImportFile] = useState(null);
@@ -266,11 +268,28 @@ const Students = () => {
     'Form 3A', 'Form 4A'
   ];
 
+  // Filter and sort students
   const filteredStudents = students.filter(student =>
     student.Std_Name?.toLowerCase().includes(filters.search.toLowerCase()) ||
     student.Std_ID?.toLowerCase().includes(filters.search.toLowerCase()) ||
     student.parent_Name?.toLowerCase().includes(filters.search.toLowerCase())
   );
+
+  // Sort students by name
+  const sortedStudents = [...filteredStudents].sort((a, b) => {
+    const nameA = a.Std_Name.toLowerCase();
+    const nameB = b.Std_Name.toLowerCase();
+    
+    if (sortOrder === 'asc') {
+      return nameA.localeCompare(nameB);
+    } else {
+      return nameB.localeCompare(nameA);
+    }
+  });
+
+  const toggleSortOrder = () => {
+    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+  };
 
   return (
     <div className="space-y-4 lg:space-y-6 p-3 lg:p-4">
@@ -385,7 +404,7 @@ const Students = () => {
           <div className="flex items-center justify-center h-32">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#FF9A00]"></div>
           </div>
-        ) : filteredStudents.length === 0 ? (
+        ) : sortedStudents.length === 0 ? (
           <div className="text-center py-8">
             <Users className="h-12 w-12 text-[#4F200D]/40 mx-auto mb-3" />
             <h3 className="text-lg font-semibold text-[#4F200D] mb-1">No Students Found</h3>
@@ -396,8 +415,15 @@ const Students = () => {
             <table className="w-full min-w-[800px]">
               <thead className="bg-gradient-to-r from-[#FFD93D]/20 to-[#FF9A00]/20">
                 <tr>
-                  <th className="px-3 py-3 lg:px-4 lg:py-3 text-left text-xs font-medium text-[#4F200D] uppercase tracking-wider border-b border-[#FF9A00]/30">
-                    Student
+                  <th 
+                    className="px-3 py-3 lg:px-4 lg:py-3 text-left text-xs font-medium text-[#4F200D] uppercase tracking-wider border-b border-[#FF9A00]/30 cursor-pointer hover:bg-[#FF9A00]/10 transition-colors"
+                    onClick={toggleSortOrder}
+                  >
+                    <div className="flex items-center">
+                      Student
+                      <ArrowUpDown className="h-3 w-3 lg:h-4 lg:w-4 ml-1" />
+                      <span className="text-xs ml-1">({sortOrder === 'asc' ? 'A-Z' : 'Z-A'})</span>
+                    </div>
                   </th>
                   <th className="px-3 py-3 lg:px-4 lg:py-3 text-left text-xs font-medium text-[#4F200D] uppercase tracking-wider border-b border-[#FF9A00]/30">
                     Parent Info
@@ -414,7 +440,7 @@ const Students = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#FF9A00]/20">
-                {filteredStudents.map((student) => (
+                {sortedStudents.map((student) => (
                   <tr key={student._id} className="hover:bg-[#F6F1E9]/50 transition-colors duration-200">
                     <td className="px-3 py-3 lg:px-4 lg:py-3">
                       <div className="flex items-center space-x-2 lg:space-x-3">
@@ -495,6 +521,7 @@ const Students = () => {
         )}
       </div>
 
+      {/* Rest of the code remains exactly the same */}
       {/* Add/Edit Student Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-3 lg:p-4 z-50">
@@ -649,7 +676,7 @@ const Students = () => {
         </div>
       )}
 
-      {/* Import Students Modal */}
+      {/* Import Students Modal - Exactly the same as before */}
       {showImportModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-3 lg:p-4 z-50">
           <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-[#FF9A00]/30 mx-auto">
