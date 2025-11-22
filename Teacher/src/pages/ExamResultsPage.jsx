@@ -50,7 +50,7 @@ const ExamResultsPage = () => {
     try {
       const response = await teacherAPI.getStudentsByClass(selectedClass);
       if (response.data.success) {
-        setStudents(response.data.data);
+        setStudents(response.data.data || []);
       }
     } catch (error) {
       toast.error('Failed to fetch students');
@@ -64,7 +64,7 @@ const ExamResultsPage = () => {
       
       const response = await teacherAPI.getExamResults(params);
       if (response.data.success) {
-        setExamResults(response.data.data);
+        setExamResults(response.data.data || []);
       }
     } catch (error) {
       toast.error('Failed to fetch exam results');
@@ -73,19 +73,21 @@ const ExamResultsPage = () => {
 
   // Sort students function
   const sortStudents = (students) => {
-    if (!sortConfig.key) return students;
+    if (!sortConfig.key || !Array.isArray(students)) return students;
 
     const sortedStudents = [...students].sort((a, b) => {
+      if (!a || !b) return 0;
+
       let aValue, bValue;
 
       switch (sortConfig.key) {
         case 'name':
-          aValue = a.Std_Name.toLowerCase();
-          bValue = b.Std_Name.toLowerCase();
+          aValue = (a.Std_Name || '').toLowerCase();
+          bValue = (b.Std_Name || '').toLowerCase();
           break;
         case 'id':
-          aValue = a.Std_ID.toLowerCase();
-          bValue = b.Std_ID.toLowerCase();
+          aValue = (a.Std_ID || '').toLowerCase();
+          bValue = (b.Std_ID || '').toLowerCase();
           break;
         default:
           return 0;
@@ -132,6 +134,11 @@ const ExamResultsPage = () => {
 
   const handleSaveResult = async (studentId, subject, examType, marks) => {
     try {
+      if (!studentId || !subject) {
+        toast.error('Invalid student or subject data');
+        return;
+      }
+
       console.log('Saving result:', { studentId, subject, examType, marks });
 
       // Validate marks based on exam type
@@ -146,6 +153,8 @@ const ExamResultsPage = () => {
       if (marks === '' || marks === null) {
         // If marks are cleared, delete the existing result if it exists
         const existingResult = examResults.find(result => 
+          result && 
+          result.student && 
           result.student._id === studentId && 
           result.subject === selectedSubject && 
           result.exam_type === examType
@@ -186,6 +195,8 @@ const ExamResultsPage = () => {
       }
 
       const existingResult = examResults.find(result => 
+        result && 
+        result.student && 
         result.student._id === studentId && 
         result.subject === selectedSubject && 
         result.exam_type === examType
@@ -255,7 +266,11 @@ const ExamResultsPage = () => {
   };
 
   const calculateTotal = (studentId, subject) => {
+    if (!studentId || !subject) return 0;
+
     const studentResults = examResults.filter(result => 
+      result && 
+      result.student && 
       result.student._id === studentId && 
       result.subject === subject &&
       result.marks !== undefined &&
@@ -290,9 +305,11 @@ const ExamResultsPage = () => {
   };
 
   // Filter and sort students
-  const filteredStudents = students.filter(student =>
-    student.Std_Name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.Std_ID.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredStudents = (students || []).filter(student =>
+    student && (
+      (student.Std_Name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (student.Std_ID || '').toLowerCase().includes(searchTerm.toLowerCase())
+    )
   );
 
   const sortedStudents = sortStudents(filteredStudents);
@@ -305,6 +322,31 @@ const ExamResultsPage = () => {
       Final: 'Final Exam'
     };
     return displays[type] || type;
+  };
+
+  // Safe student info rendering
+  const renderStudentInfo = (student) => {
+    if (!student) {
+      return (
+        <div>
+          <div className="text-sm font-semibold text-gray-400">Invalid Student Data</div>
+        </div>
+      );
+    }
+
+    return (
+      <div>
+        <div className="text-sm font-semibold text-gray-800">
+          {student.Std_Name || 'N/A'}
+        </div>
+        <div className="text-xs text-gray-600 font-medium">
+          ID: {student.Std_ID || 'N/A'}
+        </div>
+        <div className="text-xs text-gray-500">
+          {student.Gender || 'N/A'}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -513,79 +555,77 @@ const ExamResultsPage = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {sortedStudents.map((student) => (
-                    <tr key={student._id} className="hover:bg-blue-50 transition-colors duration-200">
-                      {/* Student Info */}
-                      <td className="px-4 lg:px-6 py-4">
-                        <div>
-                          <div className="text-sm font-semibold text-gray-800">
-                            {student.Std_Name}
+                  {sortedStudents.map((student) => {
+                    if (!student || !student._id) {
+                      return null; // Skip invalid students
+                    }
+
+                    return (
+                      <tr key={student._id} className="hover:bg-blue-50 transition-colors duration-200">
+                        {/* Student Info */}
+                        <td className="px-4 lg:px-6 py-4">
+                          {renderStudentInfo(student)}
+                        </td>
+
+                        {/* Exam Type Inputs */}
+                        {examTypes.map((examType) => {
+                          const existingResult = examResults.find(result => 
+                            result && 
+                            result.student && 
+                            result.student._id === student._id && 
+                            result.subject === selectedSubject && 
+                            result.exam_type === examType
+                          );
+
+                          const inputValue = getInputValue(student._id, examType, existingResult);
+
+                          return (
+                            <td key={examType} className="px-3 lg:px-4 py-4">
+                              <div className="flex justify-center">
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={inputValue}
+                                  onChange={(e) => handleInputChange(student._id, examType, e.target.value)}
+                                  onBlur={(e) => handleInputBlur(student._id, examType, e.target.value)}
+                                  onKeyPress={(e) => handleInputKeyPress(e, student._id, examType, e.target.value)}
+                                  className="w-16 lg:w-20 px-2 py-2 border border-gray-300 rounded-lg text-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 text-gray-700 font-medium"
+                                  placeholder="0"
+                                  title="Enter marks (e.g., 7.5, 8.25). Press Enter to save."
+                                />
+                              </div>
+                            </td>
+                          );
+                        })}
+
+                        {/* Total */}
+                        <td className="px-4 lg:px-6 py-4 text-center">
+                          <div className="flex justify-center">
+                            <span className={`px-3 py-2 rounded-lg font-bold text-sm ${
+                              selectedSubject 
+                                ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white'
+                                : 'bg-gray-100 text-gray-500'
+                            }`}>
+                              {selectedSubject ? calculateTotal(student._id, selectedSubject) : '-'}
+                            </span>
                           </div>
-                          <div className="text-xs text-gray-600 font-medium">
-                            ID: {student.Std_ID}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {student.Gender}
-                          </div>
-                        </div>
-                      </td>
+                        </td>
 
-                      {/* Exam Type Inputs */}
-                      {examTypes.map((examType) => {
-                        const existingResult = examResults.find(result => 
-                          result.student._id === student._id && 
-                          result.subject === selectedSubject && 
-                          result.exam_type === examType
-                        );
-
-                        const inputValue = getInputValue(student._id, examType, existingResult);
-
-                        return (
-                          <td key={examType} className="px-3 lg:px-4 py-4">
-                            <div className="flex justify-center">
-                              <input
-                                type="text"
-                                inputMode="decimal"
-                                value={inputValue}
-                                onChange={(e) => handleInputChange(student._id, examType, e.target.value)}
-                                onBlur={(e) => handleInputBlur(student._id, examType, e.target.value)}
-                                onKeyPress={(e) => handleInputKeyPress(e, student._id, examType, e.target.value)}
-                                className="w-16 lg:w-20 px-2 py-2 border border-gray-300 rounded-lg text-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 text-gray-700 font-medium"
-                                placeholder="0"
-                                title="Enter marks (e.g., 7.5, 8.25). Press Enter to save."
-                              />
-                            </div>
-                          </td>
-                        );
-                      })}
-
-                      {/* Total */}
-                      <td className="px-4 lg:px-6 py-4 text-center">
-                        <div className="flex justify-center">
-                          <span className={`px-3 py-2 rounded-lg font-bold text-sm ${
-                            selectedSubject 
-                              ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white'
-                              : 'bg-gray-100 text-gray-500'
-                          }`}>
-                            {selectedSubject ? calculateTotal(student._id, selectedSubject) : '-'}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Grade */}
-                      <td className="px-4 lg:px-6 py-4 text-center">
-                        {selectedSubject ? (
-                          <span className={`inline-flex items-center px-3 py-2 rounded-lg font-bold text-sm ${getGradeColor(getGrade(calculateTotal(student._id, selectedSubject)))}`}>
-                            {getGrade(calculateTotal(student._id, selectedSubject))}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-3 py-2 rounded-lg bg-gray-100 text-gray-500 font-bold text-sm">
-                            -
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                        {/* Grade */}
+                        <td className="px-4 lg:px-6 py-4 text-center">
+                          {selectedSubject ? (
+                            <span className={`inline-flex items-center px-3 py-2 rounded-lg font-bold text-sm ${getGradeColor(getGrade(calculateTotal(student._id, selectedSubject)))}`}>
+                              {getGrade(calculateTotal(student._id, selectedSubject))}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-3 py-2 rounded-lg bg-gray-100 text-gray-500 font-bold text-sm">
+                              -
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
