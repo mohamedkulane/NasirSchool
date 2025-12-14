@@ -5,9 +5,81 @@ const Teacher = require('../models/Teacher');
 const Expense = require('../models/Expense');
 const ExamResult = require('../models/ExamResult');
 const Attendance = require('../models/Attendance');
-const upload = require('../middleware/upload'); // Make sure this exists
+const upload = require('../middleware/upload');
+const ExcelJS = require('exceljs');
 
 // === STUDENT ROUTES ===
+
+// Get all students
+router.get('/students', async (req, res) => {
+  try {
+    const { status, class: className } = req.query;
+    let filter = {};
+    
+    if (status) filter.Status = status;
+    if (className) filter.Class = className;
+    
+    const students = await Student.find(filter);
+    res.json({ success: true, data: students });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Create student
+router.post('/students', async (req, res) => {
+  try {
+    const { generateStudentID } = require('../utils/idGenerator');
+    const Std_ID = await generateStudentID();
+    const studentData = {
+      ...req.body,
+      Std_ID,
+      Std_Password: Std_ID
+    };
+    
+    const student = new Student(studentData);
+    await student.save();
+    
+    res.status(201).json({ success: true, data: student });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+// Update student
+router.put('/students/:id', async (req, res) => {
+  try {
+    const student = await Student.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    );
+    
+    if (!student) {
+      return res.status(404).json({ success: false, error: 'Student not found' });
+    }
+    
+    res.json({ success: true, data: student });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+// Delete student
+router.delete('/students/:id', async (req, res) => {
+  try {
+    const student = await Student.findByIdAndDelete(req.params.id);
+    
+    if (!student) {
+      return res.status(404).json({ success: false, error: 'Student not found' });
+    }
+    
+    res.json({ success: true, message: 'Student deleted' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ✅ FIXED: Export students with debug logs
 router.get('/students/export', async (req, res) => {
   try {
@@ -24,7 +96,6 @@ router.get('/students/export', async (req, res) => {
     console.log(`🔵 Found ${students.length} students for export`);
     
     // Create workbook
-    const ExcelJS = require('exceljs');
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Students');
     
@@ -79,7 +150,7 @@ router.get('/students/export', async (req, res) => {
     res.status(500).json({ 
       success: false, 
       error: error.message,
-      stack: error.stack // Include stack trace for debugging
+      stack: error.stack
     });
   }
 });
@@ -98,7 +169,6 @@ router.post('/students/import', upload.single('file'), async (req, res) => {
       });
     }
     
-    const ExcelJS = require('exceljs');
     const workbook = new ExcelJS.Workbook();
     
     console.log('🔵 Loading Excel file...');
@@ -174,96 +244,188 @@ router.post('/students/import', upload.single('file'), async (req, res) => {
   }
 });
 
+// ==================== STUDENT LOGIN CONTROL ROUTES ====================
 
-// Get all students
-router.get('/students', async (req, res) => {
+// ✅ Bulk allow login for multiple students
+router.post('/students/bulk-allow-login', async (req, res) => {
   try {
-    const { status, class: className } = req.query;
-    let filter = {};
+    const { studentIds } = req.body;
     
-    if (status) filter.Status = status;
-    if (className) filter.Class = className;
+    console.log('🔵 BULK ALLOW LOGIN REQUEST:', { studentIds });
     
-    const students = await Student.find(filter);
-    res.json({ success: true, data: students });
+    if (!Array.isArray(studentIds) || studentIds.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Please provide student IDs array' 
+      });
+    }
+    
+    const result = await Student.updateMany(
+      { _id: { $in: studentIds } },
+      { 
+        loginAllowed: true,
+        updatedAt: new Date()
+      }
+    );
+    
+    console.log('✅ BULK ALLOW LOGIN SUCCESS:', result.modifiedCount, 'students updated');
+    
+    res.json({ 
+      success: true, 
+      message: `Login allowed for ${result.modifiedCount} students`,
+      data: result 
+    });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('❌ BULK ALLOW LOGIN ERROR:', error);
+    res.status(400).json({ 
+      success: false, 
+      error: error.message 
+    });
   }
 });
 
-// Create student
-router.post('/students', async (req, res) => {
+// ✅ Bulk deny login for multiple students
+router.post('/students/bulk-deny-login', async (req, res) => {
   try {
-    const { generateStudentID } = require('../utils/idGenerator');
-    const Std_ID = await generateStudentID();
-    const studentData = {
-      ...req.body,
-      Std_ID,
-      Std_Password: Std_ID
-    };
+    const { studentIds } = req.body;
     
-    const student = new Student(studentData);
-    await student.save();
+    console.log('🔵 BULK DENY LOGIN REQUEST:', { studentIds });
     
-    res.status(201).json({ success: true, data: student });
+    if (!Array.isArray(studentIds) || studentIds.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Please provide student IDs array' 
+      });
+    }
+    
+    const result = await Student.updateMany(
+      { _id: { $in: studentIds } },
+      { 
+        loginAllowed: false,
+        updatedAt: new Date()
+      }
+    );
+    
+    console.log('✅ BULK DENY LOGIN SUCCESS:', result.modifiedCount, 'students updated');
+    
+    res.json({ 
+      success: true, 
+      message: `Login denied for ${result.modifiedCount} students`,
+      data: result 
+    });
   } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
+    console.error('❌ BULK DENY LOGIN ERROR:', error);
+    res.status(400).json({ 
+      success: false, 
+      error: error.message 
+    });
   }
 });
 
-// Update student
-router.put('/students/:id', async (req, res) => {
+// ✅ Single student allow login
+router.put('/students/:id/allow-login', async (req, res) => {
   try {
+    const { id } = req.params;
+    
+    console.log('🔵 SINGLE ALLOW LOGIN REQUEST for student ID:', id);
+    
     const student = await Student.findByIdAndUpdate(
-      req.params.id,
-      req.body,
+      id,
+      { 
+        loginAllowed: true,
+        updatedAt: new Date()
+      },
       { new: true }
     );
     
     if (!student) {
-      return res.status(404).json({ success: false, error: 'Student not found' });
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Student not found' 
+      });
     }
     
-    res.json({ success: true, data: student });
+    console.log('✅ SINGLE ALLOW LOGIN SUCCESS for:', student.Std_Name);
+    
+    res.json({ 
+      success: true, 
+      message: `Login allowed for ${student.Std_Name}`,
+      data: student 
+    });
   } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
+    console.error('❌ SINGLE ALLOW LOGIN ERROR:', error);
+    res.status(400).json({ 
+      success: false, 
+      error: error.message 
+    });
   }
 });
 
-// Delete student
-router.delete('/students/:id', async (req, res) => {
+// ✅ Single student deny login
+router.put('/students/:id/deny-login', async (req, res) => {
   try {
-    const student = await Student.findByIdAndDelete(req.params.id);
+    const { id } = req.params;
+    
+    console.log('🔵 SINGLE DENY LOGIN REQUEST for student ID:', id);
+    
+    const student = await Student.findByIdAndUpdate(
+      id,
+      { 
+        loginAllowed: false,
+        updatedAt: new Date()
+      },
+      { new: true }
+    );
     
     if (!student) {
-      return res.status(404).json({ success: false, error: 'Student not found' });
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Student not found' 
+      });
     }
     
-    res.json({ success: true, message: 'Student deleted' });
+    console.log('✅ SINGLE DENY LOGIN SUCCESS for:', student.Std_Name);
+    
+    res.json({ 
+      success: true, 
+      message: `Login denied for ${student.Std_Name}`,
+      data: student 
+    });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('❌ SINGLE DENY LOGIN ERROR:', error);
+    res.status(400).json({ 
+      success: false, 
+      error: error.message 
+    });
   }
 });
 
-// Export students
-router.get('/students/export', async (req, res) => {
+// ✅ Get students with login status
+router.get('/students/login-stats', async (req, res) => {
   try {
-    const { className } = req.query;
-    let filter = { Status: 'active' };
+    const totalStudents = await Student.countDocuments();
+    const loginAllowedCount = await Student.countDocuments({ loginAllowed: true });
+    const loginDeniedCount = await Student.countDocuments({ loginAllowed: false });
+    const activeStudents = await Student.countDocuments({ Status: 'active' });
+    const inactiveStudents = await Student.countDocuments({ Status: 'unactive' });
     
-    if (className) filter.Class = className;
-    
-    const students = await Student.find(filter);
-    const { generateStudentExcel } = require('../utils/excelGenerator');
-    const workbook = generateStudentExcel(students);
-    
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename=students.xlsx');
-    
-    await workbook.xlsx.write(res);
-    res.end();
+    res.json({ 
+      success: true, 
+      data: {
+        totalStudents,
+        loginAllowedCount,
+        loginDeniedCount,
+        activeStudents,
+        inactiveStudents,
+        loginAllowedPercentage: totalStudents > 0 ? Math.round((loginAllowedCount / totalStudents) * 100) : 0
+      }
+    });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('❌ LOGIN STATS ERROR:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
   }
 });
 
@@ -326,8 +488,162 @@ router.delete('/teachers/:id', async (req, res) => {
   }
 });
 
+// === TEACHER LOGIN CONTROL ROUTES ===
 
-const ExcelJS = require('exceljs'); // Make sure to install: npm install exceljs
+// In admin routes, update block function:
+
+// ✅ BLOCK TEACHER LOGIN WITH FORCED LOGOUT
+router.put('/teachers/:id/deny-login', async (req, res) => {
+  try {
+    const teacher = await Teacher.findById(req.params.id);
+    
+    if (!teacher) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Teacher not found' 
+      });
+    }
+    
+    // ✅ INCREMENT TOKEN VERSION TO INVALIDATE ALL SESSIONS
+    const newTokenVersion = (teacher.tokenVersion || 0) + 1;
+    
+    const updatedTeacher = await Teacher.findByIdAndUpdate(
+      req.params.id,
+      { 
+        loginAllowed: false,
+        tokenVersion: newTokenVersion,
+        accountStatus: 'suspended',
+        updatedAt: new Date()
+      },
+      { new: true }
+    ).select('-password');
+    
+    console.log(`Teacher ${updatedTeacher.T_Name} login blocked. Token version incremented to ${newTokenVersion}`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Teacher login blocked successfully. All active sessions terminated.',
+      data: updatedTeacher 
+    });
+  } catch (error) {
+    console.error('Error blocking teacher login:', error);
+    res.status(400).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// ✅ ALLOW TEACHER LOGIN
+router.put('/teachers/:id/allow-login', async (req, res) => {
+  try {
+    const updatedTeacher = await Teacher.findByIdAndUpdate(
+      req.params.id,
+      { 
+        loginAllowed: true,
+        accountStatus: 'active',
+        updatedAt: new Date()
+      },
+      { new: true }
+    ).select('-password');
+    
+    if (!updatedTeacher) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Teacher not found' 
+      });
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Teacher login allowed successfully',
+      data: updatedTeacher 
+    });
+  } catch (error) {
+    console.error('Error allowing teacher login:', error);
+    res.status(400).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// Bulk action - Jooji login-ka teachers badan
+router.post('/teachers/bulk-deny-login', async (req, res) => {
+  try {
+    const { teacherIds } = req.body;
+    
+    if (!Array.isArray(teacherIds) || teacherIds.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Please provide teacher IDs' 
+      });
+    }
+    
+    const result = await Teacher.updateMany(
+      { _id: { $in: teacherIds } },
+      { 
+        loginAllowed: false,
+        updatedAt: new Date()
+      }
+    );
+    
+    res.json({ 
+      success: true, 
+      message: `Login denied for ${result.modifiedCount} teachers`,
+      data: result 
+    });
+  } catch (error) {
+    res.status(400).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// Get teachers with login status
+router.get('/teachers/login-status', async (req, res) => {
+  try {
+    const teachers = await Teacher.find()
+      .select('T_Name User_Name loginAllowed lastLogin createdAt')
+      .sort({ loginAllowed: 1, T_Name: 1 });
+    
+    res.json({ 
+      success: true, 
+      data: teachers 
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// ✅ Get Teacher Details (with login status)
+router.get('/teachers/:id', async (req, res) => {
+  try {
+    const teacher = await Teacher.findById(req.params.id)
+      .select('-password');
+    
+    if (!teacher) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Teacher not found' 
+      });
+    }
+    
+    res.json({ 
+      success: true, 
+      data: teacher 
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
 
 // === EXPENSE ROUTES ===
 
@@ -417,7 +733,7 @@ router.get('/expenses/export', async (req, res) => {
     headerRow.fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FF4F200D' } // Your brand color
+      fgColor: { argb: 'FF4F200D' }
     };
     headerRow.alignment = { horizontal: 'center' };
     
@@ -453,7 +769,7 @@ router.get('/expenses/export', async (req, res) => {
     summaryRow.fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FFFF9A00' } // Your brand color
+      fgColor: { argb: 'FFFF9A00' }
     };
     
     const summaryAmountCell = summaryRow.getCell('amount');
@@ -569,10 +885,7 @@ router.get('/expenses/stats', async (req, res) => {
   }
 });
 
-
-
-
-// === EXAM RESULT ROUTES === (FIXED VERSION)
+// === EXAM RESULT ROUTES ===
 
 // Get exam results with filters
 router.get('/exam-results', async (req, res) => {
@@ -617,7 +930,6 @@ router.get('/exam-results/export', async (req, res) => {
     
     console.log('Export request with filters:', { className, subject, exam_type });
 
-    // Validate required parameters
     if (!className) {
       return res.status(400).json({
         success: false,
@@ -625,14 +937,12 @@ router.get('/exam-results/export', async (req, res) => {
       });
     }
 
-    // Build filter object
     const filter = { class: className };
     if (subject && subject !== '') filter.subject = subject;
     if (exam_type && exam_type !== 'all') filter.exam_type = exam_type;
 
     console.log('Export database filter:', filter);
 
-    // Fetch results from database
     const results = await ExamResult.find(filter)
       .populate('student', 'Std_ID Std_Name parent_Name parent_phone Gender Class Shift Status')
       .sort({ createdAt: -1 });
@@ -646,7 +956,6 @@ router.get('/exam-results/export', async (req, res) => {
       });
     }
 
-    // Generate Excel file with filters
     const { generateExamResultExcel } = require('../utils/excelGenerator');
     const workbook = generateExamResultExcel(results, { 
       className, 
@@ -654,13 +963,11 @@ router.get('/exam-results/export', async (req, res) => {
       exam_type 
     });
 
-    // Set headers for file download
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     
     const filename = `exam_results_${className}_${subject || 'all'}_${exam_type}.xlsx`;
     res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
     
-    // Send the file
     await workbook.xlsx.write(res);
     res.end();
     
@@ -672,6 +979,7 @@ router.get('/exam-results/export', async (req, res) => {
     });
   }
 });
+
 // === ATTENDANCE ROUTES ===
 
 // Get attendance

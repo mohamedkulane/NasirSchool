@@ -10,7 +10,7 @@ const generateToken = (userId, role) => {
   });
 };
 
-// Teacher Login
+// ✅ Teacher Login (UPDATED VERSION WITH loginAllowed CHECK)
 router.post('/teacher/login', async (req, res) => {
   try {
     const { User_Name, password } = req.body;
@@ -33,7 +33,16 @@ router.post('/teacher/login', async (req, res) => {
       });
     }
 
-    console.log('Teacher found:', teacher.T_Name);
+    // ✅ KU DAR CHECK-GA LOGIN ALLOWED
+    if (teacher.loginAllowed === false) {
+      console.log('Login blocked for:', User_Name, 'loginAllowed:', teacher.loginAllowed);
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Login-kaaga waa la joojiyay. Fadlan la xiriir maamulaha.' 
+      });
+    }
+
+    console.log('Teacher found:', teacher.T_Name, 'loginAllowed:', teacher.loginAllowed);
 
     if (teacher.password !== password) {
       return res.status(401).json({ 
@@ -41,6 +50,10 @@ router.post('/teacher/login', async (req, res) => {
         error: 'Password khalad ah' 
       });
     }
+
+    // ✅ KU DAR UPDATE LAST LOGIN
+    teacher.lastLogin = new Date();
+    await teacher.save();
 
     const token = generateToken(teacher._id, 'teacher');
 
@@ -53,7 +66,8 @@ router.post('/teacher/login', async (req, res) => {
         userName: teacher.User_Name,
         role: 'teacher',
         classes: teacher.T_class,
-        subjects: teacher.T_subject
+        subjects: teacher.T_subject,
+        loginAllowed: teacher.loginAllowed
       }
     });
   } catch (error) {
@@ -65,7 +79,7 @@ router.post('/teacher/login', async (req, res) => {
   }
 });
 
-// Student Login
+// ✅ Student Login
 router.post('/student/login', async (req, res) => {
   try {
     const { Std_ID, Std_Password } = req.body;
@@ -105,7 +119,7 @@ router.post('/student/login', async (req, res) => {
   }
 });
 
-// Admin Login
+// ✅ Admin Login
 router.post('/login/admin', async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -114,7 +128,6 @@ router.post('/login/admin', async (req, res) => {
     const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 
     console.log('Admin login attempt:', username);
-    console.log('Expected:', adminUsername);
 
     if (username !== adminUsername || password !== adminPassword) {
       return res.status(401).json({ 
@@ -142,7 +155,7 @@ router.post('/login/admin', async (req, res) => {
   }
 });
 
-// Change Password
+// ✅ Change Password
 router.put('/change-password', async (req, res) => {
   try {
     const { userId, role, currentPassword, newPassword } = req.body;

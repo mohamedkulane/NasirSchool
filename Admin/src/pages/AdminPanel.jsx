@@ -9,6 +9,8 @@ import Expenses from '../components/Admin/Expenses';
 import ExamResults from '../components/Admin/ExamResults';
 import Attendance from '../components/Admin/Attendance';
 import Reports from '../components/Admin/Reports';
+import AcademicTransfer from '../components/Admin/AcademicTransfer'
+import StudentAcademicHistory from '../components/Admin/StudentAcademicHistory'
 
 const AdminPanel = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -30,16 +32,18 @@ const AdminPanel = () => {
           <div className="p-4 lg:p-6">
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 min-h-[calc(100vh-8rem)]">
               <div className="p-6 lg:p-8">
-                <Routes>
-                  <Route path="dashboard" element={<Dashboard />} />
-                  <Route path="students" element={<Students />} />
-                  <Route path="teachers" element={<Teachers />} />
-                  <Route path="expenses" element={<Expenses />} />
-                  <Route path="exam-results" element={<ExamResults />} />
-                  <Route path="attendance" element={<Attendance />} />
-                  <Route path="reports" element={<Reports />} />
-                  <Route path="*" element={<Dashboard />} />
-                </Routes>
+            <Routes>
+              <Route path="dashboard" element={<Dashboard />} />
+              <Route path="students" element={<Students />} />
+              <Route path="teachers" element={<Teachers />} />
+              <Route path="expenses" element={<Expenses />} />
+              <Route path="exam-results" element={<ExamResults />} />
+              <Route path="attendance" element={<Attendance />} />
+              <Route path="reports" element={<Reports />} />
+              <Route path="academic-transfer" element={<AcademicTransfer />} />
+              <Route path="academic-history" element={<StudentAcademicHistory />} />
+              <Route path="*" element={<Dashboard />} />
+            </Routes>
               </div>
             </div>
           </div>

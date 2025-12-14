@@ -5,7 +5,7 @@ const ExamResult = require('../models/ExamResult');
 const Attendance = require('../models/Attendance');
 const jwt = require('jsonwebtoken');
 
-// ✅ KU DAR LOGIN ENDPOINT - Tani waa la'aanta
+// ✅ KU DAR LOGIN ENDPOINT (UPDATED WITH loginAllowed CHECK)
 router.post('/login', async (req, res) => {
   try {
     const { studentId, password } = req.body;
@@ -17,6 +17,14 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ 
         success: false, 
         error: 'Student ID ama password khalad' 
+      });
+    }
+
+    // ✅ HADII LOGIN ALLOWED KA YAHOO FALSE
+    if (!student.loginAllowed) {
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Adminka ma fasaxin inaad login-gasho. Fadlan la xiriir maamulka.' 
       });
     }
 
@@ -40,7 +48,8 @@ router.post('/login', async (req, res) => {
     const token = jwt.sign(
       { 
         studentId: student.Std_ID,
-        id: student._id 
+        id: student._id,
+        loginAllowed: student.loginAllowed
       },
       process.env.JWT_SECRET || 'student-secret-key-kaaga',
       { expiresIn: '7d' }
@@ -67,8 +76,8 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// ✅ KU DAR TOKEN VERIFICATION MIDDLEWARE
-const verifyToken = (req, res, next) => {
+// ✅ KU DAR TOKEN VERIFICATION MIDDLEWARE (UPDATED VERSION)
+const verifyToken = async (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
   
   if (!token) {
@@ -80,15 +89,87 @@ const verifyToken = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'student-secret-key-kaaga');
-    req.student = decoded;
+    
+    // ✅ KU DAR: Raadi ardayga database-ka si aad u hubiso loginAllowed-ka
+    const student = await Student.findById(decoded.id);
+    
+    if (!student) {
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Student not found' 
+      });
+    }
+
+    // ✅ KU DAR: Hubi in ardaygu loginAllowed yahay
+    if (!student.loginAllowed) {
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Login-kaaga waa la joojiyay. Fadlan la xiriir maamulka.' 
+      });
+    }
+
+    // ✅ KU DAR: Hubi in ardaygu active yahay
+    if (student.Status !== 'active') {
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Akoonkani ma shaqaynayo. La xiriir maamulka.' 
+      });
+    }
+
+    // Ku dar macluumaadka ardayga request-ka
+    req.student = {
+      ...decoded,
+      loginAllowed: student.loginAllowed,
+      Status: student.Status
+    };
+    
     next();
   } catch (error) {
+    console.error('Token verification error:', error);
     return res.status(401).json({ 
       success: false, 
-      error: 'Token khalad' 
+      error: 'Token khalad ama waqtigiisa dhamaday' 
     });
   }
 };
+
+// ✅ KU DAR TOKEN VERIFICATION ENDPOINT
+router.get('/verify-token', verifyToken, async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      message: 'Token is valid',
+      data: {
+        studentId: req.student.studentId,
+        loginAllowed: req.student.loginAllowed,
+        Status: req.student.Status
+      }
+    });
+  } catch (error) {
+    res.status(401).json({
+      success: false,
+      error: 'Token verification failed'
+    });
+  }
+});
+
+// ✅ KU DAR LOGOUT ENDPOINT
+router.post('/logout', verifyToken, async (req, res) => {
+  try {
+    // Halkan waxaad ku dari kartaa token invalidation logic
+    res.json({
+      success: true,
+      message: 'Logout successful'
+    });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Logout error' 
+    });
+  }
+});
+
 
 
 // Get student's exam results

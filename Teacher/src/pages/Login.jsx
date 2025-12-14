@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../utils/auth';
 import { teacherAPI } from '../services/api';
 import toast from 'react-hot-toast';
-import { School, Eye, EyeOff, BookOpen } from 'lucide-react';
+import { BookOpen, Eye, EyeOff } from 'lucide-react';
 
 const Login = () => {
   const [credentials, setCredentials] = useState({
@@ -15,6 +15,7 @@ const Login = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
 
+  // Handle input changes
   const handleChange = (e) => {
     setCredentials({
       ...credentials,
@@ -22,49 +23,74 @@ const Login = () => {
     });
   };
 
+  useEffect(() => {
+    // Check URL parameters for blocked/expired sessions
+    const params = new URLSearchParams(window.location.search);
+    const blocked = params.get('blocked');
+    const expired = params.get('expired');
+    const message = params.get('message');
+    
+    if (blocked === 'true' && message) {
+      toast.error(decodeURIComponent(message));
+      // Clear URL parameters
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+    
+    if (expired === 'true') {
+      toast.error('Session expired. Please login again.');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+    
+    // Clear all existing auth data when login page loads
+    localStorage.removeItem('teacher_token');
+    localStorage.removeItem('token');
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('teacher_user');
+    localStorage.removeItem('user');
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (!credentials.User_Name || !credentials.password) {
-      toast.error('Fadlan geli username iyo password');
+      toast.error('Please enter username and password');
       return;
     }
 
     setLoading(true);
 
     try {
-      console.log('Attempting login with:', credentials);
-      
       const response = await teacherAPI.login(credentials);
-      console.log('Login response:', response.data);
-
+      
       if (response.data.success) {
+        // Store token with consistent key name
+        localStorage.setItem('teacher_token', response.data.token);
+        localStorage.setItem('teacher_user', JSON.stringify(response.data.user));
+        
+        // Update auth context
         login(response.data.user, response.data.token);
+        
         toast.success('Login successful!');
-        navigate('/');
+        navigate('/dashboard');
       }
     } catch (error) {
-      console.error('Login error details:', error);
+      console.error('Login error:', error);
       
       if (error.response) {
-        if (error.response.status === 401) {
-          toast.error('Username ama password khalad ah');
-        } else if (error.response.status === 404) {
-          toast.error('Server endpoint not found. Check backend.');
+        if (error.response.status === 403) {
+          toast.error('Your account has been suspended. Contact administrator.');
+        } else if (error.response.status === 401) {
+          toast.error('Invalid username or password');
         } else {
           toast.error(error.response.data?.error || 'Login failed');
         }
-      } else if (error.request) {
-        toast.error('No response from server. Check if backend is running.');
       } else {
-        toast.error('Network error: ' + error.message);
+        toast.error('Network error. Check your connection.');
       }
     } finally {
       setLoading(false);
     }
   };
-
-
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#2D4F2B] via-[#3A6438] to-[#457443] p-4">
@@ -80,8 +106,8 @@ const Login = () => {
         <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl border border-white/20 p-8 transform hover:scale-[1.02] transition-all duration-500">
           {/* Header */}
           <div className="text-center">
-            <div className="mx-auto  flex items-center justify-center  mb-4 transform hover:rotate-12 transition-transform duration-500">
-              <img className='w-36 h-36 rounded-md' src="/nasir logo.jpeg" alt="" />
+            <div className="mx-auto flex items-center justify-center mb-4 transform hover:rotate-12 transition-transform duration-500">
+              <img className="w-36 h-36 rounded-md" src="/nasir logo.jpeg" alt="Naasir School Logo" />
             </div>
             <h2 className="text-3xl font-bold text-[#2D4F2B] mb-2">
               Naasir School
@@ -94,6 +120,7 @@ const Login = () => {
           {/* Development helper */}
           {process.env.NODE_ENV === 'development' && (
             <div className="mt-6 text-center">
+              <p className="text-xs text-gray-500">Development mode</p>
             </div>
           )}
 
@@ -174,24 +201,26 @@ const Login = () => {
         </div>
       </div>
 
-      {/* Custom CSS for animations */}
-      <style jsx>{`
-        @keyframes blob {
-          0% { transform: translate(0px, 0px) scale(1); }
-          33% { transform: translate(30px, -50px) scale(1.1); }
-          66% { transform: translate(-20px, 20px) scale(0.9); }
-          100% { transform: translate(0px, 0px) scale(1); }
-        }
-        .animate-blob {
-          animation: blob 7s infinite;
-        }
-        .animation-delay-2000 {
-          animation-delay: 2s;
-        }
-        .animation-delay-4000 {
-          animation-delay: 4s;
-        }
-      `}</style>
+      {/* Add CSS for animations */}
+      <style>
+        {`
+          @keyframes blob {
+            0% { transform: translate(0px, 0px) scale(1); }
+            33% { transform: translate(30px, -50px) scale(1.1); }
+            66% { transform: translate(-20px, 20px) scale(0.9); }
+            100% { transform: translate(0px, 0px) scale(1); }
+          }
+          .animate-blob {
+            animation: blob 7s infinite;
+          }
+          .animation-delay-2000 {
+            animation-delay: 2s;
+          }
+          .animation-delay-4000 {
+            animation-delay: 4s;
+          }
+        `}
+      </style>
     </div>
   );
 };

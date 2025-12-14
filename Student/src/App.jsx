@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import Layout from './components/Layout/Layout'
@@ -8,6 +8,27 @@ import ExamResults from './pages/ExamResults'
 import Profile from './pages/Profile'
 import Attendance from './pages/Attendance'
 import Loading from './components/UI/Loading'
+import { startTokenValidation, stopTokenValidation } from './services/auth'
+
+// Token Validator Component
+const TokenValidator = () => {
+  const { checkAuthStatus } = useAuth()
+  
+  useEffect(() => {
+    // Start token validation when component mounts
+    startTokenValidation()
+    
+    // Check auth status immediately
+    checkAuthStatus()
+    
+    // Cleanup on unmount
+    return () => {
+      stopTokenValidation()
+    }
+  }, [checkAuthStatus])
+  
+  return null
+}
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth()
@@ -27,6 +48,7 @@ function App() {
   return (
     <AuthProvider>
       <Router>
+        <TokenValidator />
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={

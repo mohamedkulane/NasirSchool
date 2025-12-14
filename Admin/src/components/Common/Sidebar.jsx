@@ -13,7 +13,8 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  School
+  School,
+  ArrowRight
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -32,6 +33,8 @@ const Sidebar = () => {
     { path: '/admin/exam-results', icon: BookOpen, label: 'Exam Results' },
     { path: '/admin/attendance', icon: ClipboardList, label: 'Attendance' },
     { path: '/admin/reports', icon: BarChart3, label: 'Reports' },
+     { path: '/admin/academic-transfer', icon: ArrowRight, label: 'Academic Transfer' },
+    { path: '/admin/academic-history', icon: BookOpen, label: 'Academic History' },
   ];
 
   const handleLogout = () => {
@@ -99,7 +102,7 @@ const Sidebar = () => {
                     Naasir School
                   </h1>
                   <p className="text-[#FF9A00] text-sm mt-1 capitalize transition-all duration-300 hover:translate-x-1">
-                    {user?.role || 'Admin'} Panel
+                    {user?.role || 'Admin'} Panel 
                   </p>
                 </div>
               )}
@@ -192,6 +195,8 @@ const Sidebar = () => {
                 <p className="text-xs text-[#4F200D]/70 truncate transition-all duration-300">
                   {user.name || user.email}
                 </p>
+                <p className='font-bold text-xl text-green-500'>version 1.2</p>
+          
               </div>
             )}
           </div>

@@ -38,10 +38,23 @@ const studentSchema = new mongoose.Schema({
     enum: ['active', 'unactive'],
     default: 'active'
   },
+    loginAllowed: {
+    type: Boolean,
+    default: false // By default, arday ma geli karo login-ka
+  },
   Std_Password: {
     type: String,
     required: true
-  }
+  },
+  lastLogin: {
+    type: Date,
+    default: null
+  },
+  loginHistory: [{
+    timestamp: { type: Date, default: Date.now },
+    ipAddress: String,
+    userAgent: String
+  }]
 }, { timestamps: true });
 
 module.exports = mongoose.model('Student', studentSchema);

@@ -32,6 +32,7 @@ app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/teacher', require('./routes/teacherRoutes'));
 app.use('/api/student', require('./routes/studentRoutes'));
 app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/academic', require('./routes/academicRoutes'));
 
 // MongoDB connection
 const MONGODB_URI = process.env.MONGODB_URI;
